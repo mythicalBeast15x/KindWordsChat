@@ -18,7 +18,7 @@ class ChatGUI(tk.Tk):
 
         self.title("KindWords Chat")
         self.geometry("400x400")
-        self.resizable(False, False)
+        #self.resizable(False, False)
 
         # Message Label
         self.msg_label = tk.Label(self, text="Messages:")
