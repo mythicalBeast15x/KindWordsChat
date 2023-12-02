@@ -3,14 +3,13 @@ import threading
 import tkinter as tk
 from tkinter import simpledialog, scrolledtext
 from zeroconf import Zeroconf, ServiceBrowser, ServiceStateChange
-import errno
+
 # Client configuration
 PORT = 5555
 
 # Create a Zeroconf instance for service discovery
 zeroconf = Zeroconf()
 discovery_finished = threading.Event()
-
 
 # Tkinter GUI
 class ChatGUI(tk.Tk):
@@ -43,32 +42,63 @@ class ChatGUI(tk.Tk):
         self.client_socket = None
         self.connection_established = False
 
-        #self.initialize_connection()
+        # Initialize connection during object creation
+        self.initialize_connection()
 
-        if self.connection_established:
-            # Receive and display the welcome message from the server
-            un_message = self.client_socket.recv(1024).decode('utf-8')
+        self.protocol("WM_DELETE_WINDOW", self.cleanup_and_exit)
 
-            # Prompt user for username after displaying the welcome message
-            usernames = un_message.split("\n")
-            self.username = usernames[0]
-            while self.username in usernames:
-                self.username = simpledialog.askstring("Username", "Enter your username:")
-            if not self.username:
-                self.destroy()
+        # Bind the Enter key to the send_message method
+        self.message_entry.bind("<Return>", lambda event: self.send_message())
 
-            # Send Username to Server
-            self.client_socket.sendall(self.username.encode('utf-8'))
-            # Start a thread to receive messages
-            receive_thread = threading.Thread(target=self.receive_messages)
-            receive_thread.start()
+    def initialize_connection(self):
+        # Function to connect to the discovered server
+        def connect_to_server(server_ip):
+            try:
+                # Create a socket for the client
+                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client_socket.connect((server_ip, PORT))
+                self.client_socket = client_socket
+                self.connection_established = True
 
-            self.protocol("WM_DELETE_WINDOW", self.cleanup_and_exit)
+                # Receive and display the welcome message from the server
+                un_message = self.client_socket.recv(1024).decode('utf-8')
 
-            # Bind the Enter key to the send_message method
-            self.message_entry.bind("<Return>", lambda event: self.send_message())
+                # Prompt user for username after displaying the welcome message
+                usernames = un_message.split("\n")
+                self.username = usernames[0]
+                while self.username in usernames:
+                    self.username = simpledialog.askstring("Username", "Enter your username:", parent=self)
+                if not self.username:
+                    self.destroy()
 
+                # Send Username to Server
+                self.client_socket.sendall(self.username.encode('utf-8'))
+                print('un')
+                # Start a thread to receive messages
+                receive_thread = threading.Thread(target=self.receive_messages)
+                receive_thread.start()
 
+            except Exception as e:
+                print(f"Error connecting to server: {e}")
+                self.connection_established = False
+
+        # Callback function when a service is discovered
+        def on_service_state_change(zeroconf, service_type, name, state_change):
+            if state_change is ServiceStateChange.Added:
+                info = zeroconf.get_service_info(service_type, name)
+                if info:
+                    addresses = info.parsed_addresses()
+                    if addresses:
+                        # Convert the string address to bytes
+                        address_bytes = bytes(map(int, addresses[0].split('.')))
+                        server_ip = socket.inet_ntoa(address_bytes)
+                        print(f"Discovered server at {server_ip}")
+                        self.after(0, lambda: connect_to_server(server_ip))
+
+            discovery_finished.set()
+
+        # Browse for services of type "_chat._tcp.local."
+        browser = ServiceBrowser(zeroconf, "_chat._tcp.local.", handlers=[on_service_state_change])
 
     def send_message(self):
         if not self.connection_established:
@@ -94,43 +124,11 @@ class ChatGUI(tk.Tk):
 
     def cleanup_and_exit(self):
         # Cleanup logic, such as closing the socket
+        print("Closing the socket.")
         if self.client_socket:
             self.client_socket.close()
         self.destroy()  # Close the Tkinter window
-
-
-
-# Function to connect to the discovered server
-def connect_to_server(chat_gui, server_ip):
-    try:
-        # Create a socket for the client
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((server_ip, PORT))
-        chat_gui.client_socket = client_socket
-        chat_gui.connection_established = True
-    except Exception as e:
-        print(f"Error connecting to server: {e}")
-        chat_gui.connection_established = False
-
-
-# Callback function when a service is discovered
-def on_service_state_change(zeroconf, service_type, name, state_change):
-    if state_change is ServiceStateChange.Added:
-        info = zeroconf.get_service_info(service_type, name)
-        if info:
-            addresses = info.parsed_addresses()
-            if addresses:
-                # Convert the string address to bytes
-                address_bytes = bytes(map(int, addresses[0].split('.')))
-                server_ip = socket.inet_ntoa(address_bytes)
-                print(f"Discovered server at {server_ip}")
-                chat_gui.after(0, lambda: connect_to_server(chat_gui, server_ip))
-
-    discovery_finished.set()
-
-
-# Browse for services of type "_chat._tcp.local."
-browser = ServiceBrowser(zeroconf, "_chat._tcp.local.", handlers=[on_service_state_change])
+        print("Socket closed.")
 
 # Create an instance of the ChatGUI class
 chat_gui = ChatGUI()
