@@ -1,7 +1,7 @@
 import socket
 import threading
 from zeroconf import Zeroconf, ServiceInfo
-
+from generateHash import load_hash, HashTable
 # Server configuration
 #HOST = '127.0.0.1'
 #HOST = '0.0.0.0'
@@ -18,7 +18,20 @@ local_ip = socket.gethostbyname(socket.gethostname())
 
 # Convert the PORT variable to an integer
 PORT = int(PORT)
+hash_table = load_hash('profanities.pkl')
 
+
+def filter_message(msg, hash):
+    words = msg.split(' ')
+    name = words.pop(0)
+    new_msg = name
+    for word in words:
+        if hash.check_word(word):
+            word = "*"*len(word)
+        new_msg += " " + word
+    new_msg = new_msg
+
+    return new_msg
 
 # Create a socket for the server
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -73,9 +86,13 @@ def handle_client(client_socket, client_address):
             if not message:
                 break
 
+            # Filter message
+            message = filter_message(message, hash_table)
+
             print(f"Received message from {client_address}: {message}")
 
             # Broadcast the message to all connected clients
+
             for c in clients:
                 c.sendall(message.encode('utf-8'))
 
