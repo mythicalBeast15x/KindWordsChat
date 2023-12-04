@@ -84,14 +84,21 @@ class ChatGUI(tk.Tk):
 
         # Callback function when a service is discovered
         def on_service_state_change(zeroconf, service_type, name, state_change):
+            print(-1)
             if state_change is ServiceStateChange.Added:
+                print(-.5)
                 info = zeroconf.get_service_info(service_type, name)
+                print(-.05)
                 if info:
                     addresses = info.parsed_addresses()
+                    print(-.005)
                     if addresses:
                         # Convert the string address to bytes
+                        print(0)
                         address_bytes = bytes(map(int, addresses[0].split('.')))
+                        print(1)
                         server_ip = socket.inet_ntoa(address_bytes)
+                        print(2)
                         print(f"Discovered server at {server_ip}")
                         self.after(0, lambda: connect_to_server(server_ip))
 

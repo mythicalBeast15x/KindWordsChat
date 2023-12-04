@@ -15,7 +15,25 @@ server_socket.listen()
 '''
 # Get the local IP address
 local_ip = socket.gethostbyname(socket.gethostname())
+######
+def get_ip_address():
+    try:
+        # Create a socket and connect to a dummy address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip_address = s.getsockname()[0]
+        s.close()
+        return ip_address
+    except socket.error:
+        return None
 
+server_ip = get_ip_address()
+
+if server_ip:
+    print(f"Server IP address: {server_ip}")
+else:
+    print("Unable to determine the server's IP address.")
+#######
 # Convert the PORT variable to an integer
 PORT = int(PORT)
 hash_table = load_hash('profanities.pkl')
@@ -35,20 +53,27 @@ def filter_message(msg, hash):
 
 # Create a socket for the server
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind((local_ip, PORT))
+server_socket.bind((server_ip, PORT))
+#server_socket.bind(('0.0.0.0', PORT))
 server_socket.listen()
+#host_name = socket.gethostbyname(socket.gethostname())
+
 
 # Create a Zeroconf service to advertise the server
 zeroconf = Zeroconf()
 service_info = ServiceInfo(
     type_="_chat._tcp.local.",
     name=f"ChatServer._chat._tcp.local.",
-    server=f"{socket.gethostname()}.local.",
+    server=server_ip,
     port=PORT,
     weight=0,
     priority=0,
     properties={},
 )
+#print(f"Server IP address: {socket.gethostbyname(socket.gethostname())}")
+service_info.addresses = [socket.inet_aton(server_ip)]
+print(service_info.parsed_addresses())
+
 zeroconf.register_service(service_info)
 
 
